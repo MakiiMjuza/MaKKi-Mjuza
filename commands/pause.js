@@ -1,22 +1,27 @@
-const { canModifyQueue, LOCALE } = require("../util/EvobotUtil");
-const i18n = require("i18n");
+const Command = require('../util/Command');
 
-i18n.setLocale(LOCALE);
-
-module.exports = {
-  name: "pause",
-  description: i18n.__("pause.description"),
-  execute(message) {
-    const queue = message.client.queue.get(message.guild.id);
-    if (!queue) return message.reply(i18n.__("pause.errorNotQueue")).catch(console.error);
-    if (!canModifyQueue(message.member)) return i18n.__("common.errorNotChannel");
-
-    if (queue.playing) {
-      queue.playing = false;
-      queue.connection.dispatcher.pause(true);
-      return queue.textChannel
-        .send(i18n.__mf("pause.result", { author: message.author }))
-        .catch(console.error);
-    }
+class Pause extends Command {
+  constructor(client) {
+    super(client, {
+      name: 'pauziraj',
+      description: 'Ova naredba će zaustaviti trenutnu pjesmu koja se reproducira',
+      usage: 'pauza',
+      cooldown: 5,
+      category: 'Music'
+    });
   }
-};
+
+  async run(message) {
+    if (message.settings.djonly && !message.member.roles.some(c => c.name.toLowerCase() === message.settings.djrole.toLowerCase())) return message.client.embed('notDJ', message);
+    const voiceChannel = message.member.voiceChannel;
+    if (!voiceChannel) return this.client.embed('nijeGlasovnikanal', message);
+    if (!this.client.playlists.has(message.guild.id)) return this.client.embed('prazan Que', message);    
+    const thisPlaylist = this.client.playlists.get(message.guild.id);
+    if (!thisPlaylist.playing) return this.client.embed('već je pauzirano', message);   
+    thisPlaylist.playing = false;
+    thisPlaylist.connection.dispatcher.pause();
+    return this.client.embed('pauzirano', message);   
+  }
+}
+
+module.exports = Pause;
