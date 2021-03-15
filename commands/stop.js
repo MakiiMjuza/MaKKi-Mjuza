@@ -1,19 +1,27 @@
-const { canModifyQueue, LOCALE } = require("../util/EvobotUtil");
-const i18n = require("i18n");
+/* eslint linebreak-style: 0 */
+const Command = require('../util/Command.js');
 
-i18n.setLocale(LOCALE);
-
-module.exports = {
-  name: "stop",
-  description: i18n.__('stop.description'),
-  execute(message) {
-    const queue = message.client.queue.get(message.guild.id);
-
-    if (!queue) return message.reply(i18n.__("stop.errorNotQueue")).catch(console.error);
-    if (!canModifyQueue(message.member)) return i18n.__("common.errorNotChannel");
-
-    queue.songs = [];
-    queue.connection.dispatcher.end();
-    queue.textChannel.send(i18n.__mf("stop.result", { author: message.author })).catch(console.error);
+class Stop extends Command {
+  constructor(client) {
+    super(client, {
+      name: 'stop',
+      description: 'Ova naredba zaustavit će trenutno reproduciranje pjesama i očistiti red',
+      usage: 'stop',
+      cooldown: 5,
+      category: 'Music'
+    });
   }
-};
+
+  async run(message) { 
+    if (message.settings.djonly && !message.member.roles.some(c => c.name.toLowerCase() === message.settings.djrole.toLowerCase())) return message.client.embed('notDJ', message);
+    const voiceChannel = message.member.voiceChannel;
+    if (!voiceChannel) return this.client.embed('nijeGlasovniKanal', message);
+    if (!this.client.playlists.has(message.guild.id)) return this.client.embed('prazanQue', message);
+    const thisPlaylist = this.client.playlists.get(message.guild.id);
+    thisPlaylist.songs = [];
+    thisPlaylist.connection.dispatcher.end();
+    return this.client.embed('stopirano', message);
+  }
+}
+
+module.exports = Stop;
