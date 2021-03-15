@@ -6,20 +6,20 @@ const i18n = require("i18n");
 i18n.setLocale(LOCALE);
 
 module.exports = {
-  name: "lyrics",
-  aliases: ["ly"],
+  name: "tekst",
+  aliases: ["txt"],
   description: i18n.__("lyrics.description"),
   async execute(message) {
     const queue = message.client.queue.get(message.guild.id);
-    if (!queue) return message.channel.send(i18n.__("lyrics.errorNotQueue")).catch(console.error);
+    if (!queue) return message.channel.send(i18n.__("lyrics.greškaNijeQue")).catch(console.error);
 
     let lyrics = null;
     const title = queue.songs[0].title;
     try {
       lyrics = await lyricsFinder(queue.songs[0].title, "");
-      if (!lyrics) lyrics = i18n.__mf("lyrics.lyricsNotFound", { title: title });
+      if (!lyrics) lyrics = i18n.__mf("lyrics.tekstNijePronađen", { title: title });
     } catch (error) {
-      lyrics = i18n.__mf("lyrics.lyricsNotFound", { title: title });
+      lyrics = i18n.__mf("lyrics.tekstNijePronađen", { title: title });
     }
 
     let lyricsEmbed = new MessageEmbed()
