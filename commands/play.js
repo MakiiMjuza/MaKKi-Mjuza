@@ -1,140 +1,55 @@
-const { play } = require("../include/play");
-const ytdl = require("ytdl-core");
-const YouTubeAPI = require("simple-youtube-api");
-const scdl = require("soundcloud-downloader").default
-const https = require("https");
-const { YOUTUBE_API_KEY, SOUNDCLOUD_CLIENT_ID, LOCALE, DEFAULT_VOLUME } = require("../util/EvobotUtil");
-const youtube = new YouTubeAPI(YOUTUBE_API_KEY);
-const i18n = require("i18n");
+const Command = require('../util/Command');
+const { MessageEmbed } = require('discord.js');
+const { ytapikey } = require('../config.json');
+const ytapi = require('simple-youtube-api'); 
+const handleVideo = require('../util/MusicHandling');
+const youtube = new ytapi(ytapikey); 
 
-i18n.setLocale(LOCALE);
+class Play extends Command {
+  constructor(client) {
+    super(client, {
+      name: 'pokreni',
+      usage: '-pokreni <url|name|id>',
+      description: 'Ova komanda pokreće bota da pušta pjesme',
+      cooldown: 1,
+      extended: 'Ova naredba reproducira pjesmu s YouTubea pomoću bota, ali morate koristiti glasovni poziv da biste to koristili',
+      category: 'Music'
+    });
+  }
 
-module.exports = {
-  name: "play",
-  cooldown: 3,
-  aliases: ["p"],
-  description: i18n.__("play.description"),
-  async execute(message, args) {
-    const { channel } = message.member.voice;
-
-    const serverQueue = message.client.queue.get(message.guild.id);
-    if (!channel) return message.reply(i18n.__("play.errorNotChannel")).catch(console.error);
-    if (serverQueue && channel !== message.guild.me.voice.channel)
-      return message
-        .reply(i18n.__mf("play.errorNotInSameChannel", { user: message.client.user }))
-        .catch(console.error);
-
-    if (!args.length)
-      return message
-        .reply(i18n.__mf("play.usageReply", { prefix: message.client.prefix }))
-        .catch(console.error);
-
-    const permissions = channel.permissionsFor(message.client.user);
-    if (!permissions.has("CONNECT")) return message.reply(i18n.__("play.missingPermissionConnect"));
-    if (!permissions.has("SPEAK")) return message.reply(i18n.__("play.missingPermissionSpeak"));
-
-    const search = args.join(" ");
-    const videoPattern = /^(https?:\/\/)?(www\.)?(m\.)?(youtube\.com|youtu\.?be)\/.+$/gi;
-    const playlistPattern = /^.*(list=)([^#\&\?]*).*/gi;
-    const scRegex = /^https?:\/\/(soundcloud\.com)\/(.*)$/;
-    const mobileScRegex = /^https?:\/\/(soundcloud\.app\.goo\.gl)\/(.*)$/;
-    const url = args[0];
-    const urlValid = videoPattern.test(args[0]);
-
-    // Start the playlist if playlist url was provided
-    if (!videoPattern.test(args[0]) && playlistPattern.test(args[0])) {
-      return message.client.commands.get("playlist").execute(message, args);
-    } else if (scdl.isValidUrl(url) && url.includes("/sets/")) {
-      return message.client.commands.get("playlist").execute(message, args);
-    }
-
-    if (mobileScRegex.test(url)) {
-      try {
-        https.get(url, function (res) {
-          if (res.statusCode == "302") {
-            return message.client.commands.get("play").execute(message, [res.headers.location]);
-          } else {
-            return message.reply("No content could be found at that url.").catch(console.error);
-          }
-        });
-      } catch (error) {
-        console.error(error);
-        return message.reply(error.message).catch(console.error);
+  async run(message, args) {
+    if (message.settings.djonly && !message.member.roles.some(c => c.name.toLowerCase() === message.settings.djrole.toLowerCase())) return message.client.embed('notDJ', message);
+    if (!args.length) return this.client.embed('noArgs', message);
+    const voiceChannel = message.member.voiceChannel;
+    if (!voiceChannel) return this.client.embed('noVoiceChannel', message);
+    const url = args[0] ? args[0].replace(/<(.+)>/g, '$1') : '';
+    const permissions = voiceChannel.permissionsFor(this.client.user).toArray();
+    if (!permissions.includes('CONNECT')) return this.client.embed('noPerms-CONNECT', message);
+    if (!permissions.includes('SPEAK')) return this.client.embed('noPerms-SPEAK', message);
+    if (url.match(/^https?:\/\/(www.youtube.com|youtube.com)\/playlist(.*)$/)) {
+      const playlist = await youtube.getPlaylist(url);
+      const videos = await playlist.getVideos();
+      for (const video of Object.values(videos)) {
+        const video2 = await youtube.getVideoByID(video.id); // eslint-disable-line no-await-in-loop
+        await handleVideo(video2, message, voiceChannel, true); // eslint-disable-line no-await-in-loop
       }
-      return message.reply("Following url redirection...").catch(console.error);
-    }
-
-    const queueConstruct = {
-      textChannel: message.channel,
-      channel,
-      connection: null,
-      songs: [],
-      loop: false,
-      volume: DEFAULT_VOLUME || 100,
-      playing: true
-    };
-
-    let songInfo = null;
-    let song = null;
-
-    if (urlValid) {
-      try {
-        songInfo = await ytdl.getInfo(url);
-        song = {
-          title: songInfo.videoDetails.title,
-          url: songInfo.videoDetails.video_url,
-          duration: songInfo.videoDetails.lengthSeconds
-        };
-      } catch (error) {
-        console.error(error);
-        return message.reply(error.message).catch(console.error);
-      }
-    } else if (scRegex.test(url)) {
-      try {
-        const trackInfo = await scdl.getInfo(url, SOUNDCLOUD_CLIENT_ID);
-        song = {
-          title: trackInfo.title,
-          url: trackInfo.permalink_url,
-          duration: Math.ceil(trackInfo.duration / 1000)
-        };
-      } catch (error) {
-        console.error(error);
-        return message.reply(error.message).catch(console.error);
-      }
+      const embed = new MessageEmbed()
+        .setAuthor('Playlist')
+        .setDescription(`✅ Playlist: **${playlist.title}** has been added to the queue!`)
+        .setColor(message.guild.me.roles.highest.color || 0x00AE86);
+      message.channel.send(embed);
     } else {
+      let video;
       try {
-        const results = await youtube.searchVideos(search, 1, { part: "snippet" });
-        songInfo = await ytdl.getInfo(results[0].url);
-        song = {
-          title: songInfo.videoDetails.title,
-          url: songInfo.videoDetails.video_url,
-          duration: songInfo.videoDetails.lengthSeconds
-        };
+        video = await youtube.getVideo(url);
       } catch (error) {
-        console.error(error);
-        return message.reply(error.message).catch(console.error);
+        const videos = await youtube.searchVideos(args.join(' '), 1);
+        if (!videos.length) return this.client.embed('noSongsFound', message, args);
+        video = await youtube.getVideoByID(videos[0].id);   
       }
-    }
-
-    if (serverQueue) {
-      serverQueue.songs.push(song);
-      return serverQueue.textChannel
-        .send(i18n.__mf("play.queueAdded", { title: song.title, author: message.author }))
-        .catch(console.error);
-    }
-
-    queueConstruct.songs.push(song);
-    message.client.queue.set(message.guild.id, queueConstruct);
-
-    try {
-      queueConstruct.connection = await channel.join();
-      await queueConstruct.connection.voice.setSelfDeaf(true);
-      play(queueConstruct.songs[0], message);
-    } catch (error) {
-      console.error(error);
-      message.client.queue.delete(message.guild.id);
-      await channel.leave();
-      return message.channel.send(i18n.__('play.cantJoinChannel', {error: error})).catch(console.error);
+      return handleVideo(video, message, voiceChannel);
     }
   }
-};
+}
+
+module.exports = Play;
