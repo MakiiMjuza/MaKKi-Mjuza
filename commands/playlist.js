@@ -122,7 +122,7 @@ module.exports = {
         console.error(error);
         message.client.queue.delete(message.guild.id);
         await channel.leave();
-        return message.channel.send(i18n.__("play.cantJoinChannel", { error: error })).catch(console.error);
+        return message.channel.send(i18n.__("play.nemogućeSpajanje(Nije Kanal)", { error: error })).catch(console.error);
       }
     }
   }
