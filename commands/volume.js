@@ -1,26 +1,35 @@
-const { canModifyQueue, LOCALE } = require("../util/EvobotUtil");
-const i18n = require("i18n");
+/* eslint linebreak-style: 0 */
+const Command = require('../util/Command.js');
 
-i18n.setLocale(LOCALE);
+class Volume extends Command {
+  constructor(client) {
+    super(client, {
+      name: 'zvuk',
+      description: 'Ova će naredba postaviti glasnoću pjesama.'
 
-module.exports = {
-  name: "volume",
-  aliases: ["v"],
-  description: i18n.__("volume.description"),
-  execute(message, args) {
-    const queue = message.client.queue.get(message.guild.id);
+￼
 
-    if (!queue) return message.reply(i18n.__("volume.errorNotQueue")).catch(console.error);
-    if (!canModifyQueue(message.member))
-      return message.reply(i18n.__("volume.errorNotChannel")).catch(console.error);
 
-    if (!args[0]) return message.reply(i18n.__mf("volume.currentVolume", { volume: queue.volume })).catch(console.error);
-    if (isNaN(args[0])) return message.reply(i18n.__("volume.errorNotNumber")).catch(console.error);
-    if (Number(args[0]) > 100 || Number(args[0]) < 0)
-      return message.reply(i18n.__("volume.errorNotValid")).catch(console.error);
 
-    queue.volume = args[0];
-    queue.connection.dispatcher.setVolumeLogarithmic(args[0] / 100);
-    return queue.textChannel.send(i18n.__mf("volume.result", { arg: args[0] })).catch(console.error);
+
+      usage: 'zvuk [number]',
+      cooldown: 5,
+      category: 'Music'
+    });
   }
-};
+
+  async run(message, args) {
+    if (message.settings.djonly && !message.member.roles.some(c => c.name.toLowerCase() === message.settings.djrole.toLowerCase())) return message.client.embed('notDJ', message);
+    const voiceChannel = message.member.voiceChannel;
+    if (!voiceChannel) return this.client.embed('nisiuGlasovnompozivu', message);
+    if (!this.client.playlists.has(message.guild.id)) return this.client.embed('prazanQue', message);
+    if (!args[0]) return this.client.embed('trenutnaGlasnoća', message);
+    if (Number(args[0]) < 0 || Number(args[0]) > 100) return this.client.embed('greškaGlasnoće', message);
+    message.guild.voiceConnection.volume = Number(args[0]) / 100;
+    this.client.playlists.get(message.guild.id).volume = Number(args[0]);
+    this.client.playlists.get(message.guild.id).connection.dispatcher.setVolumeLogarithmic(Number(args[0]) / 100);
+    return this.client.embed('zvukSetan', message, args);
+  }
+}
+
+module.exports = Volume;
