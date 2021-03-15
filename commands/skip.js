@@ -1,19 +1,27 @@
-const { canModifyQueue, LOCALE } = require("../util/EvobotUtil");
-const i18n = require("i18n");
+const Command = require('../util/Command.js');
 
-i18n.setLocale(LOCALE);
-
-module.exports = {
-  name: "skip",
-  aliases: ["s"],
-  description: i18n.__("skip.description"),
-  execute(message) {
-    const queue = message.client.queue.get(message.guild.id);
-    if (!queue) return message.reply(i18n.__("skip.errorNotQueue")).catch(console.error);
-    if (!canModifyQueue(message.member)) return i18n.__("common.errorNotChannel");
-
-    queue.playing = true;
-    queue.connection.dispatcher.end();
-    queue.textChannel.send(i18n.__mf("skip.result", { author: message.author })).catch(console.error);
+class Skip extends Command {
+  constructor(client) {
+    super(client, {
+      name: 'skip',
+      description: 'Ova komanda skipa trenutnu pjesmu.',
+      usage: 'skip',
+      aliases: ['next'],
+      cooldown: 5,
+      category: 'Music'
+    });
   }
-};
+
+  async run(message) {
+    if (message.settings.djonly && !message.member.roles.some(c => c.name.toLowerCase() === message.settings.djrole.toLowerCase())) return message.client.embed('notDJ', message);
+    const voiceChannel = message.member.voiceChannel;
+    if (!voiceChannel) return this.client.embed('nijeGlasovnikanal', message);
+    if (!this.client.playlists.has(message.guild.id)) return this.client.embed('prazanQue', message);
+    const thisPlaylist = this.client.playlists.get(message.guild.id);
+    thisPlaylist.loop = false;
+    thisPlaylist.connection.dispatcher.end('skip');
+    return this.client.embed('skipovano', message);
+  }
+}
+
+module.exports = Skip;
