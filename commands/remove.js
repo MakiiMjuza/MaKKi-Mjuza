@@ -5,14 +5,14 @@ i18n.setLocale(LOCALE);
 const pattern = /^[0-9]{1,2}(\s*,\s*[0-9]{1,2})*$/;
 
 module.exports = {
-  name: "remove",
-  aliases: ["rm"],
+  name: "smakni",
+  aliases: ["sm"],
   description: i18n.__("remove.description"),
   execute(message, args) {
     const queue = message.client.queue.get(message.guild.id);
 
-    if (!queue) return message.channel.send(i18n.__("remove.errorNotQueue")).catch(console.error);
-    if (!canModifyQueue(message.member)) return i18n.__("common.errorNotChannel");
+    if (!queue) return message.channel.send(i18n.__("remove.greškaNijeQue")).catch(console.error);
+    if (!canModifyQueue(message.member)) return i18n.__("common.greškaNijeKanal");
     if (!args.length) return message.reply(i18n.__mf("remove.usageReply", { prefix: message.client.prefix }));
 
     const arguments = args.join("");
