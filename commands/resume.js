@@ -1,25 +1,28 @@
-const { canModifyQueue, LOCALE } = require("../util/EvobotUtil");
-const i18n = require("i18n");
+/* eslint linebreak-style: 0 */
+const Command = require('../util/Command.js');
 
-i18n.setLocale(LOCALE);
-
-module.exports = {
-  name: "resume",
-  aliases: ["r"],
-  description: i18n.__('resume.description'),
-  execute(message) {
-    const queue = message.client.queue.get(message.guild.id);
-    if (!queue) return message.reply(i18n.__("resume.errorNotQueue")).catch(console.error);
-    if (!canModifyQueue(message.member)) return i18n.__("common.errorNotChannel");
-
-    if (!queue.playing) {
-      queue.playing = true;
-      queue.connection.dispatcher.resume();
-      return queue.textChannel
-        .send(i18n.__mf("resume.resultNotPlaying", { author: message.author }))
-        .catch(console.error);
-    }
-
-    return message.reply(i18n.__("resume.errorPlaying")).catch(console.error);
+class Resume extends Command {
+  constructor(client) {
+    super(client, {
+      name: 'nastavi',
+      description: 'Ova komanda nastavlja pauziranu pjesmu.',
+      usage: 'resume',
+      cooldown: 5,
+      category: 'Music'
+    });
   }
-};
+
+  async run(message) {
+    if (message.settings.djonly && !message.member.roles.some(c => c.name.toLowerCase() === message.settings.djrole.toLowerCase())) return message.client.embed('notDJ', message);
+    const voiceChannel = message.member.voiceChannel;
+    if (!voiceChannel) return this.client.embed('nijeGlasovnikanal', message);
+    if (!this.client.playlists.has(message.guild.id)) return this.client.embed('prazan que', message);
+    const thisPlaylist = this.client.playlists.get(message.guild.id);
+    if (thisPlaylist.playing) return this.client.embed('Već je nastavljeno', message);
+    thisPlaylist.playing = true;
+    thisPlaylist.connection.dispatcher.resume();
+    return this.client.embed('resumed', message);
+  }
+}
+
+module.exports = Resume;
